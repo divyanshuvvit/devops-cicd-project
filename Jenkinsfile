@@ -12,21 +12,19 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = 'devopspro-website'
+        IMAGE_NAME = 'divyanshuvvit/devopspro-website'
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out source code...'
                 checkout scm
             }
         }
 
         stage('Validate Application') {
             steps {
-                echo 'Validating website files...'
                 sh '''
                     test -f index.html
                     test -f css/style.css
@@ -39,13 +37,11 @@ pipeline {
 
         stage('Application Build') {
             steps {
-                echo 'Preparing application...'
                 sh '''
                     mkdir -p build
                     cp index.html build/
                     cp -r css build/
                     cp -r js build/
-                    echo "Application build completed."
                 '''
             }
         }
@@ -74,22 +70,56 @@ pipeline {
         stage('Docker Image Verification') {
             steps {
                 sh '''
-                    docker image inspect \
-                    ${IMAGE_NAME}:${BUILD_NUMBER}
-
+                    docker image inspect ${IMAGE_NAME}:${BUILD_NUMBER}
                     docker images ${IMAGE_NAME}
                 '''
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKERHUB_USER',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+                        echo "$DOCKERHUB_TOKEN" | docker login \
+                        -u "$DOCKERHUB_USER" --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push Image to Docker Hub') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKERHUB_USER',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                        docker push ${IMAGE_NAME}:latest
+                        docker logout
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'CI and Docker image build completed successfully!'
+            echo 'CI pipeline and Docker Hub image publishing completed successfully!'
         }
 
         failure {
-            echo 'Pipeline failed. Check console output.'
+            echo 'Pipeline failed. Check Console Output.'
         }
 
         always {
