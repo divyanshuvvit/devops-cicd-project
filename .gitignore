@@ -1,0 +1,23 @@
+# Environment files
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE settings
+.vscode/
+.idea/
