@@ -13,6 +13,12 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'divyanshuvvit/devopspro-website'
+
+        AWS_ACCOUNT_ID = '742825129798'
+        AWS_REGION = 'ap-southeast-2'
+
+        ECR_REGISTRY = '742825129798.dkr.ecr.ap-southeast-2.amazonaws.com'
+        ECR_REPOSITORY = 'devopspro-website'
     }
 
     stages {
@@ -30,6 +36,7 @@ pipeline {
                     test -f css/style.css
                     test -f js/script.js
                     test -f Dockerfile
+
                     echo "Application validation successful."
                 '''
             }
@@ -52,6 +59,7 @@ pipeline {
                     test -f build/index.html
                     test -f build/css/style.css
                     test -f build/js/script.js
+
                     echo "Build verification successful."
                 '''
             }
@@ -63,6 +71,12 @@ pipeline {
                     docker build \
                     -t ${IMAGE_NAME}:${BUILD_NUMBER} \
                     -t ${IMAGE_NAME}:latest .
+
+                    docker tag ${IMAGE_NAME}:${BUILD_NUMBER} \
+                    ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+
+                    docker tag ${IMAGE_NAME}:${BUILD_NUMBER} \
+                    ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
                 '''
             }
         }
@@ -71,7 +85,10 @@ pipeline {
             steps {
                 sh '''
                     docker image inspect ${IMAGE_NAME}:${BUILD_NUMBER}
+
                     docker images ${IMAGE_NAME}
+
+                    docker images ${ECR_REGISTRY}/${ECR_REPOSITORY}
                 '''
             }
         }
@@ -87,6 +104,7 @@ pipeline {
                 ]) {
                     sh '''
                         set +x
+
                         echo "$DOCKERHUB_TOKEN" | docker login \
                         -u "$DOCKERHUB_USER" --password-stdin
                     '''
@@ -106,16 +124,53 @@ pipeline {
                     sh '''
                         docker push ${IMAGE_NAME}:${BUILD_NUMBER}
                         docker push ${IMAGE_NAME}:latest
+
                         docker logout
                     '''
                 }
+            }
+        }
+
+        stage('Login to AWS ECR') {
+            steps {
+                sh '''
+                    aws ecr get-login-password \
+                    --region ${AWS_REGION} | \
+                    docker login \
+                    --username AWS \
+                    --password-stdin ${ECR_REGISTRY}
+                '''
+            }
+        }
+
+        stage('Push Image to AWS ECR') {
+            steps {
+                sh '''
+                    docker push \
+                    ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+
+                    docker push \
+                    ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+                    docker logout ${ECR_REGISTRY}
+                '''
+            }
+        }
+
+        stage('Verify AWS ECR Images') {
+            steps {
+                sh '''
+                    aws ecr describe-images \
+                    --repository-name ${ECR_REPOSITORY} \
+                    --region ${AWS_REGION}
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'CI pipeline and Docker Hub image publishing completed successfully!'
+            echo 'SUCCESS: Docker images published to Docker Hub and AWS ECR!'
         }
 
         failure {
