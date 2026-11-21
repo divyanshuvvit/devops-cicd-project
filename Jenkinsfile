@@ -156,6 +156,28 @@ pipeline {
                 '''
             }
         }
+        
+stage('Deploy to AWS EKS') {
+    steps {
+        withEnv(["KUBECONFIG=/var/lib/jenkins/.kube/config"]) {
+            sh '''
+                echo "Deploying DevOpsPro to Amazon EKS..."
+
+                kubectl set image deployment/devopspro-website \
+                  devopspro-website=742825129798.dkr.ecr.ap-southeast-2.amazonaws.com/devopspro-website:${BUILD_NUMBER}
+
+                kubectl rollout status deployment/devopspro-website \
+                  --timeout=300s
+
+                echo "Verifying Kubernetes deployment..."
+
+                kubectl get deployments
+                kubectl get pods
+                kubectl get services
+            '''
+        }
+    }
+}
 
         stage('Verify AWS ECR Images') {
             steps {
